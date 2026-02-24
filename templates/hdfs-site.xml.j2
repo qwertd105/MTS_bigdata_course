@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<configuration>
+
+  <property>
+    <name>dfs.replication</name>
+    <value>3</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>{{ namenode_dir }}</value>
+  </property>
+
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>{{ datanode_dir }}</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.secondary.http-address</name>
+    <value>{{ secondary_host }}:9868</value>
+  </property>
+
+</configuration>

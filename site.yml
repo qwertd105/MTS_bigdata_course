@@ -1,0 +1,144 @@
+- name: Deploy HDFS cluster (NN + SNN + 3xDN)
+  hosts: cluster
+  become: true
+  vars:
+    hadoop_tgz: "hadoop-{{ hadoop_version }}.tar.gz"
+    hadoop_url: "{{ hadoop_mirror }}/hadoop-{{ hadoop_version }}/{{ hadoop_tgz }}"
+    hadoop_extract_dir: "{{ hadoop_install_dir }}/hadoop-{{ hadoop_version }}"
+
+    # /etc/hosts content
+    hosts_entries:
+      - { ip: "192.168.10.52", name: "jn" }
+      - { ip: "192.168.10.28", name: "nn" }
+      - { ip: "192.168.10.26", name: "dn-00" }
+      - { ip: "192.168.10.27", name: "dn-01" }
+
+  tasks:
+    - name: Ensure /etc/hosts has cluster hostnames
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ item.ip }} {{ item.name }}"
+        state: present
+      loop: "{{ hosts_entries }}"
+
+    - name: Install Java and base utils
+      apt:
+        name:
+          - "{{ java_pkg }}"
+          - curl
+          - tar
+        state: present
+        update_cache: true
+
+    - name: Create hadoop group
+      group:
+        name: hadoop
+        state: present
+
+    - name: Create hadoop user
+      user:
+        name: hadoop
+        group: hadoop
+        create_home: true
+        shell: /bin/bash
+        state: present
+
+    - name: Create HDFS directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: hadoop
+        group: hadoop
+        mode: "0755"
+      loop:
+        - /data/hdfs
+        - "{{ namenode_dir }}"
+        - "{{ datanode_dir }}"
+        - /var/log/hadoop-hdfs
+        - /var/run/hadoop
+
+    - name: Download Hadoop tarball (once per host)
+      get_url:
+        url: "{{ hadoop_url }}"
+        dest: "/tmp/{{ hadoop_tgz }}"
+        mode: "0644"
+
+    - name: Extract Hadoop
+      unarchive:
+        src: "/tmp/{{ hadoop_tgz }}"
+        dest: "{{ hadoop_install_dir }}"
+        remote_src: true
+        creates: "{{ hadoop_extract_dir }}/bin/hdfs"
+
+    - name: Symlink /opt/hadoop -> extracted dir
+      file:
+        src: "{{ hadoop_extract_dir }}"
+        dest: "{{ hadoop_home }}"
+        state: link
+        force: true
+
+    - name: Deploy Hadoop configs
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ hadoop_home }}/etc/hadoop/{{ item.dest }}"
+        owner: hadoop
+        group: hadoop
+        mode: "0644"
+      loop:
+        - { src: "core-site.xml.j2", dest: "core-site.xml" }
+        - { src: "hdfs-site.xml.j2", dest: "hdfs-site.xml" }
+        - { src: "hadoop-env.sh.j2", dest: "hadoop-env.sh" }
+
+    - name: Install systemd units for HDFS services
+      template:
+        src: "{{ item.src }}"
+        dest: "/etc/systemd/system/{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - { src: "hdfs-namenode.service.j2", dest: "hdfs-namenode.service" }
+        - { src: "hdfs-datanode.service.j2", dest: "hdfs-datanode.service" }
+        - { src: "hdfs-secondarynamenode.service.j2", dest: "hdfs-secondarynamenode.service" }
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+- name: Format NameNode (only once)
+  hosts: namenode
+  become: true
+  tasks:
+    - name: Check if NameNode already formatted
+      stat:
+        path: "{{ namenode_dir }}/current/VERSION"
+      register: nn_version
+
+    - name: Format NameNode if not formatted yet
+      become: true
+      command: "sudo -u hadoop {{ hadoop_home }}/bin/hdfs namenode -format -force"
+      when: not nn_version.stat.exists
+
+
+- name: Start/enable HDFS services
+  hosts: cluster
+  become: true
+  tasks:
+    - name: Enable and start NameNode on nn
+      systemd:
+        name: hdfs-namenode
+        enabled: true
+        state: started
+      when: inventory_hostname in groups['namenode']
+
+    - name: Enable and start SecondaryNameNode on jn
+      systemd:
+        name: hdfs-secondarynamenode
+        enabled: true
+        state: started
+      when: inventory_hostname in groups['secondary']
+
+    - name: Enable and start DataNode on all datanodes
+      systemd:
+        name: hdfs-datanode
+        enabled: true
+        state: started
+      when: inventory_hostname in groups['datanodes']
