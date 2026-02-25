@@ -20,3 +20,13 @@ Replication factor: 3.
 
 ## Logs
 
+
+![Screenshot 2026-02-25 at 02.00.47](logs/Screenshot%202026-02-25%20at%2002.00.47.png)
+
+![Screenshot 2026-02-25 at 02.00.59](logs/Screenshot%202026-02-25%20at%2002.00.59.png)
+
+![Screenshot 2026-02-25 at 02.02.46](logs/Screenshot%202026-02-25%20at%2002.02.46.png)
+
+![Screenshot 2026-02-25 at 02.03.29](logs/Screenshot%202026-02-25%20at%2002.03.29.png)
+
+![Screenshot 2026-02-25 at 02.04.11](logs/Screenshot%202026-02-25%20at%2002.04.11.png)
