@@ -5,6 +5,9 @@
     hadoop_tgz: "hadoop-{{ hadoop_version }}.tar.gz"
     hadoop_url: "{{ hadoop_mirror }}/hadoop-{{ hadoop_version }}/{{ hadoop_tgz }}"
     hadoop_extract_dir: "{{ hadoop_install_dir }}/hadoop-{{ hadoop_version }}"
+    yarn_rm_host: nn
+    yarn_history_host: nn
+
 
     # /etc/hosts content
     hosts_entries:
@@ -88,7 +91,9 @@
         - { src: "core-site.xml.j2", dest: "core-site.xml" }
         - { src: "hdfs-site.xml.j2", dest: "hdfs-site.xml" }
         - { src: "hadoop-env.sh.j2", dest: "hadoop-env.sh" }
-
+        - { src: "yarn-site.xml.j2", dest: "yarn-site.xml" }
+        - { src: "mapred-site.xml.j2", dest: "mapred-site.xml" }
+        - { src: "hadoop-env.sh.j2", dest: "hadoop-env.sh" }
     - name: Install systemd units for HDFS services
       template:
         src: "{{ item.src }}"
@@ -98,6 +103,9 @@
         - { src: "hdfs-namenode.service.j2", dest: "hdfs-namenode.service" }
         - { src: "hdfs-datanode.service.j2", dest: "hdfs-datanode.service" }
         - { src: "hdfs-secondarynamenode.service.j2", dest: "hdfs-secondarynamenode.service" }
+        - { src: "yarn-resourcemanager.service.j2", dest: "yarn-resourcemanager.service" }
+        - { src: "yarn-nodemanager.service.j2", dest: "yarn-nodemanager.service" }
+        - { src: "mapreduce-historyserver.service.j2", dest: "mapreduce-historyserver.service" }
 
     - name: Reload systemd
       systemd:
@@ -142,3 +150,53 @@
         enabled: true
         state: started
       when: inventory_hostname in groups['datanodes']
+
+- name: Start/enable YARN services
+  hosts: cluster
+  become: true
+  tasks:
+    - name: Enable and start ResourceManager on nn
+      systemd:
+        name: yarn-resourcemanager
+        enabled: true
+        state: started
+      when: inventory_hostname in groups['yarn_rm']
+
+    - name: Enable and start JobHistoryServer on nn
+      systemd:
+        name: mapreduce-historyserver
+        enabled: true
+        state: started
+      when: inventory_hostname in groups['yarn_history']
+
+    - name: Enable and start NodeManager on yarn nodes
+      systemd:
+        name: yarn-nodemanager
+        enabled: true
+        state: started
+      when: inventory_hostname in groups['yarn_nodemgrs']
+
+- name: Publish Hadoop/YARN web UIs externally via nginx on jn
+  hosts: proxy
+  become: true
+  tasks:
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Deploy nginx config for Hadoop UIs
+      template:
+        src: nginx-hadoop-uis.conf.j2
+        dest: /etc/nginx/conf.d/hadoop-uis.conf
+        mode: "0644"
+
+    - name: Test nginx config
+      command: nginx -t
+
+    - name: Restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: true

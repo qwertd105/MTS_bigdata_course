@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<configuration>
+
+  <property>
+    <name>yarn.resourcemanager.hostname</name>
+    <value>{{ yarn_rm_host }}</value>
+  </property>
+
+  <property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+  </property>
+
+  <property>
+    <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
+    <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+  </property>
+
+  <!-- (не обязательно, но полезно) лог-агрегация -->
+  <property>
+    <name>yarn.log-aggregation-enable</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>yarn.log.server.url</name>
+    <value>http://{{ yarn_rm_host }}:8088/cluster/app</value>
+  </property>
+
+</configuration>

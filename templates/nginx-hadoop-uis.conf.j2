@@ -1,0 +1,83 @@
+# Hadoop/YARN UIs published via jn (public IP)
+
+# NameNode UI (nn:9870) -> public:19870
+server {
+  listen 19870;
+  location / {
+    proxy_pass http://nn:9870;
+  }
+}
+
+# ResourceManager UI (nn:8088) -> public:18088
+server {
+  listen 18088;
+  location / {
+    proxy_pass http://nn:8088;
+  }
+}
+
+# JobHistory UI (nn:19888) -> public:19888
+server {
+  listen 19888;
+  location / {
+    proxy_pass http://nn:19888;
+  }
+}
+
+# SecondaryNameNode UI (jn:9868) -> public:19868
+server {
+  listen 19868;
+  location / {
+    proxy_pass http://jn:9868;
+  }
+}
+
+# DataNode UIs (choose separate ports)
+# dn-00:9864 -> public:19864
+server {
+  listen 19864;
+  location / {
+    proxy_pass http://dn-00:9864;
+  }
+}
+
+# dn-01:9864 -> public:19865
+server {
+  listen 19865;
+  location / {
+    proxy_pass http://dn-01:9864;
+  }
+}
+
+# jn DataNode UI:9864 -> public:19866
+server {
+  listen 19866;
+  location / {
+    proxy_pass http://jn:9864;
+  }
+}
+
+# NodeManager UIs (8042)
+# jn NM -> public:18042
+server {
+  listen 18042;
+  location / {
+    proxy_pass http://jn:8042;
+  }
+}
+
+# dn-00 NM -> public:18043
+server {
+  listen 18043;
+  location / {
+    proxy_pass http://dn-00:8042;
+  }
+}
+
+# dn-01 NM -> public:18044
+server {
+  listen 18044;
+  location / {
+    proxy_pass http://dn-01:8042;
+  }
+}

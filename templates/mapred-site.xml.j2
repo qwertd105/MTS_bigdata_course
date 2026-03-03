@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<configuration>
+
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+  </property>
+
+  <property>
+    <name>mapreduce.jobhistory.address</name>
+    <value>{{ yarn_history_host }}:10020</value>
+  </property>
+
+  <property>
+    <name>mapreduce.jobhistory.webapp.address</name>
+    <value>{{ yarn_history_host }}:19888</value>
+  </property>
+
+  <!-- Чтобы контейнеры знали JAVA_HOME -->
+  <property>
+    <name>yarn.app.mapreduce.am.env</name>
+    <value>JAVA_HOME={{ java_home }}</value>
+  </property>
+
+  <property>
+    <name>mapreduce.map.env</name>
+    <value>JAVA_HOME={{ java_home }}</value>
+  </property>
+
+  <property>
+    <name>mapreduce.reduce.env</name>
+    <value>JAVA_HOME={{ java_home }}</value>
+  </property>
+
+</configuration>
+
