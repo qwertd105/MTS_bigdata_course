@@ -1,4 +1,4 @@
-# HDFS cluster deployment (NameNode + SecondaryNameNode + 3 DataNode) via Ansible
+# HDFS cluster deployment (NameNode + SecondaryNameNode + 3 DataNode + Apache HIVE) via Ansible
 
 ## Topology
 - jn (192.168.10.52) — SecondaryNameNode + DataNode (also entry host via 178.236.25.104)
@@ -23,6 +23,10 @@ Replication factor: 3.
 - JobHistoryServer: `nn` (192.168.10.28)
 - NodeManagers: `jn` (192.168.10.52), `dn-00` (192.168.10.26), `dn-01` (192.168.10.27)
 
+
+## Logs and screenshots of HIVE for HW3
+
+1. ![Screenshot 2026-03-04 at 02.35.27](./hive_logs/Screenshot%202026-03-11%20at%2000.17.18.png)
 
 ## Logs and screenshots of UI for HW2
 
