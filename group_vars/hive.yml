@@ -1,0 +1,26 @@
+hive_version: "4.0.0-alpha-2"
+hive_tgz: "apache-hive-{{ hive_version }}-bin.tar.gz"
+hive_url: "https://archive.apache.org/dist/hive/hive-{{ hive_version }}/{{ hive_tgz }}"
+
+hive_install_dir: "/opt"
+hive_home: "/opt/hive"
+hive_extract_dir: "/opt/apache-hive-{{ hive_version }}-bin"
+
+# Metastore DB (PostgreSQL)
+hive_db_name: "metastore"
+hive_db_user: "hive"
+hive_db_password: "hive_password_change_me"   # для учебной среды ок; лучше вынести в secrets и не коммитить
+
+# Hive services
+hive_metastore_host: "nn"
+hive_metastore_port: 9083
+hive_hs2_host: "nn"
+hive_hs2_port: 10000
+
+# HDFS warehouse
+hive_warehouse_dir: "/user/hive/warehouse"
+hive_scratch_dir: "/tmp/hive"
+
+# JDBC драйвер Postgres (Ubuntu пакет)
+postgres_jdbc_pkg: "libpostgresql-jdbc-java"
+postgres_jdbc_jar: "/usr/share/java/postgresql-jdbc4.jar"

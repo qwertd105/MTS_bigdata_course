@@ -200,3 +200,222 @@
         name: nginx
         state: restarted
         enabled: true
+
+- name: Deploy PostgreSQL for Hive metastore (nn)
+  hosts: hive_db
+  become: true
+  vars_files:
+    - group_vars/hive.yml
+  tasks:
+    - name: Install PostgreSQL and JDBC package
+      apt:
+        name:
+          - postgresql
+          - "{{ postgres_jdbc_pkg }}"
+        state: present
+        update_cache: true
+
+    - name: Ensure PostgreSQL is running
+      systemd:
+        name: postgresql
+        state: started
+        enabled: true
+
+    - name: Create metastore DB user
+      become_user: postgres
+      shell: |
+        psql -tc "SELECT 1 FROM pg_roles WHERE rolname='{{ hive_db_user }}'" | grep -q 1 || \
+        psql -c "CREATE USER {{ hive_db_user }} WITH PASSWORD '{{ hive_db_password }}';"
+      args:
+        executable: /bin/bash
+
+    - name: Create metastore database
+      become_user: postgres
+      shell: |
+        psql -tc "SELECT 1 FROM pg_database WHERE datname='{{ hive_db_name }}'" | grep -q 1 || \
+        psql -c "CREATE DATABASE {{ hive_db_name }} OWNER {{ hive_db_user }};"
+      args:
+        executable: /bin/bash
+
+
+- name: Deploy Apache Hive binaries and config (nn + clients)
+  hosts: hive_metastore:hive_hs2:hive_clients
+  become: true
+  vars_files:
+    - group_vars/hive.yml
+  tasks:
+    - name: Install base tools
+      apt:
+        name:
+          - curl
+          - tar
+        state: present
+        update_cache: true
+
+    - name: Download Hive tarball
+      get_url:
+        url: "{{ hive_url }}"
+        dest: "/tmp/{{ hive_tgz }}"
+        mode: "0644"
+
+    - name: Extract Hive
+      unarchive:
+        src: "/tmp/{{ hive_tgz }}"
+        dest: "{{ hive_install_dir }}"
+        remote_src: true
+        creates: "{{ hive_extract_dir }}/bin/hive"
+
+    - name: Symlink /opt/hive -> extracted dir
+      file:
+        src: "{{ hive_extract_dir }}"
+        dest: "{{ hive_home }}"
+        state: link
+        force: true
+
+    - name: Ensure Hive conf dir exists
+      file:
+        path: "{{ hive_home }}/conf"
+        state: directory
+        owner: hadoop
+        group: hadoop
+        mode: "0755"
+
+    - name: Deploy hive-site.xml
+      template:
+        src: hive-site.xml.j2
+        dest: "{{ hive_home }}/conf/hive-site.xml"
+        owner: hadoop
+        group: hadoop
+        mode: "0644"
+
+    - name: Add Hadoop conf symlinks into Hive conf (core/hdfs/yarn/mapred)
+      file:
+        src: "{{ hadoop_home }}/etc/hadoop/{{ item }}"
+        dest: "{{ hive_home }}/conf/{{ item }}"
+        state: link
+        force: true
+      loop:
+        - core-site.xml
+        - hdfs-site.xml
+        - yarn-site.xml
+        - mapred-site.xml
+
+    - name: Copy PostgreSQL JDBC jar into Hive lib (on nn where services run)
+      copy:
+        src: "{{ postgres_jdbc_jar }}"
+        dest: "{{ hive_home }}/lib/postgresql-jdbc.jar"
+        remote_src: true
+        owner: hadoop
+        group: hadoop
+        mode: "0644"
+      when: inventory_hostname in groups['hive_metastore'] or inventory_hostname in groups['hive_hs2']
+
+
+- name: Prepare HDFS dirs for Hive (warehouse, scratch)
+  hosts: hive_clients
+  become: true
+  vars_files:
+    - group_vars/hive.yml
+  tasks:
+    - name: Create /tmp and warehouse directories in HDFS
+      shell: |
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -mkdir -p /tmp
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -chmod 1777 /tmp
+
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -mkdir -p {{ hive_warehouse_dir }}
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -chmod 0777 {{ hive_warehouse_dir }}
+
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -mkdir -p {{ hive_scratch_dir }}
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -chmod 0777 {{ hive_scratch_dir }}
+      args:
+        executable: /bin/bash
+
+
+- name: Install systemd units for Hive services (nn)
+  hosts: hive_metastore:hive_hs2
+  become: true
+  vars_files:
+    - group_vars/hive.yml
+  tasks:
+    - name: Install hive-metastore systemd unit
+      template:
+        src: hive-metastore.service.j2
+        dest: /etc/systemd/system/hive-metastore.service
+        mode: "0644"
+      when: inventory_hostname in groups['hive_metastore']
+
+    - name: Install hiveserver2 systemd unit
+      template:
+        src: hiveserver2.service.j2
+        dest: /etc/systemd/system/hiveserver2.service
+        mode: "0644"
+      when: inventory_hostname in groups['hive_hs2']
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+
+- name: Initialize Hive metastore schema (only once) and start services (nn)
+  hosts: hive_metastore:hive_hs2
+  become: true
+  vars_files:
+    - group_vars/hive.yml
+  tasks:
+    - name: Check if metastore schema already initialized (postgres has VERSION table)
+      become_user: postgres
+      shell: |
+        psql -d {{ hive_db_name }} -tc "SELECT to_regclass('public.VERSION');"
+      register: schema_check
+      changed_when: false
+
+    - name: Initialize schema if not present
+      shell: |
+        sudo -u hadoop {{ hive_home }}/bin/schematool -dbType postgres -initSchema --verbose
+      when: "'version' not in (schema_check.stdout | lower)"
+      args:
+        executable: /bin/bash
+      when: inventory_hostname in groups['hive_metastore']
+
+    - name: Enable and start hive-metastore
+      systemd:
+        name: hive-metastore
+        enabled: true
+        state: started
+      when: inventory_hostname in groups['hive_metastore']
+
+    - name: Enable and start hiveserver2
+      systemd:
+        name: hiveserver2
+        enabled: true
+        state: started
+      when: inventory_hostname in groups['hive_hs2']
+
+
+- name: Automated load into partitioned Hive table
+  hosts: hive_clients
+  become: true
+  vars_files:
+    - group_vars/hive.yml
+  tasks:
+    - name: Upload sample data to HDFS partition paths
+      shell: |
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -mkdir -p /tmp/hive_input/dt=2026-03-01
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -mkdir -p /tmp/hive_input/dt=2026-03-02
+
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -put -f {{ playbook_dir }}/files/sample_2026-03-01.csv /tmp/hive_input/dt=2026-03-01/data.csv
+        sudo -u hadoop {{ hadoop_home }}/bin/hdfs dfs -put -f {{ playbook_dir }}/files/sample_2026-03-02.csv /tmp/hive_input/dt=2026-03-02/data.csv
+      args:
+        executable: /bin/bash
+
+    - name: Create partitioned table
+      shell: |
+        sudo -u hadoop {{ hive_home }}/bin/beeline -u jdbc:hive2://{{ hive_hs2_host }}:{{ hive_hs2_port }}/default -n hadoop -f {{ playbook_dir }}/hive_scripts/01_create_partitioned_table.hql
+      args:
+        executable: /bin/bash
+
+    - name: Load data into partitions and validate counts
+      shell: |
+        sudo -u hadoop {{ hive_home }}/bin/beeline -u jdbc:hive2://{{ hive_hs2_host }}:{{ hive_hs2_port }}/default -n hadoop -f {{ playbook_dir }}/hive_scripts/02_load_partitions.hql
+      args:
+        executable: /bin/bash

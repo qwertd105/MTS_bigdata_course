@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!-- Warehouse в HDFS -->
+  <property>
+    <name>hive.metastore.warehouse.dir</name>
+    <value>{{ hive_warehouse_dir }}</value>
+  </property>
+
+  <!-- Scratch (в HDFS), нужен Hive -->
+  <property>
+    <name>hive.exec.scratchdir</name>
+    <value>{{ hive_scratch_dir }}</value>
+  </property>
+
+  <!-- Metastore thrift service (НЕ embedded) -->
+  <property>
+    <name>hive.metastore.uris</name>
+    <value>thrift://{{ hive_metastore_host }}:{{ hive_metastore_port }}</value>
+  </property>
+
+  <!-- JDBC для metastore (PostgreSQL) -->
+  <property>
+    <name>javax.jdo.option.ConnectionURL</name>
+    <value>jdbc:postgresql://{{ hive_metastore_host }}:5432/{{ hive_db_name }}</value>
+  </property>
+
+  <property>
+    <name>javax.jdo.option.ConnectionDriverName</name>
+    <value>org.postgresql.Driver</value>
+  </property>
+
+  <property>
+    <name>javax.jdo.option.ConnectionUserName</name>
+    <value>{{ hive_db_user }}</value>
+  </property>
+
+  <property>
+    <name>javax.jdo.option.ConnectionPassword</name>
+    <value>{{ hive_db_password }}</value>
+  </property>
+
+  <property>
+    <name>hive.server2.authentication</name>
+    <value>NONE</value>
+  </property>
+
+  <property>
+    <name>hive.server2.thrift.port</name>
+    <value>{{ hive_hs2_port }}</value>
+  </property>
+
+  <property>
+    <name>hive.server2.enable.doAs</name>
+    <value>false</value>
+  </property>
+
+  <property>
+    <name>hive.metastore.schema.verification</name>
+    <value>false</value>
+  </property>
+
+</configuration>
